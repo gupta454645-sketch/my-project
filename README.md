@@ -1,7 +1,7 @@
 # My Project
 
-A React + Vite frontend with a Node + Express API, set up to run inside an
-Alloy session via Docker.
+An **Account Audit Log** dashboard: a React + Vite frontend backed by a
+Node + Express API, set up to run inside an Alloy session via Docker.
 
 ## Structure
 
@@ -39,11 +39,12 @@ Then open http://localhost:3000.
 
 ## API
 
-| Method | Path         | Description                       |
-| ------ | ------------ | --------------------------------- |
-| GET    | `/api/health` | Health/status of the API service  |
-| GET    | `/api/count` | Current server-side counter       |
-| POST   | `/api/count` | Increment the server-side counter |
+| Method | Path              | Description                                              |
+| ------ | ----------------- | -------------------------------------------------------- |
+| GET    | `/api/health`     | Health/status of the API service                         |
+| GET    | `/api/audit-log`  | Audit events; supports `?q=` and `?status=` filters      |
+| GET    | `/api/count`      | Current server-side counter                              |
+| POST   | `/api/count`      | Increment the server-side counter                        |
 
 ## Requirements
 

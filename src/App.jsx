@@ -1,164 +1,178 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+
+const STATUS_LABEL = {
+  success: "success",
+  failed: "failed",
+  warning: "warning",
+};
+
+function formatTime(iso) {
+  return new Date(iso).toLocaleString(undefined, {
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 export default function App() {
-  const [count, setCount] = useState(0);
-  const [health, setHealth] = useState(null);
-  const [apiCount, setApiCount] = useState(null);
-  const [apiError, setApiError] = useState(null);
+  const [events, setEvents] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState("all");
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadBackend() {
-      try {
-        const [healthRes, countRes] = await Promise.all([
-          fetch("/api/health"),
-          fetch("/api/count"),
-        ]);
-        if (!healthRes.ok || !countRes.ok) {
-          throw new Error(`HTTP ${healthRes.status}`);
-        }
-        const healthData = await healthRes.json();
-        const countData = await countRes.json();
-        if (!cancelled) {
-          setHealth(healthData);
-          setApiCount(countData.count);
-        }
-      } catch (err) {
-        if (!cancelled) setApiError(err.message);
-      }
-    }
-
-    loadBackend();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  async function incrementApi() {
+  async function load() {
+    setLoading(true);
+    setError(null);
     try {
-      const res = await fetch("/api/count", { method: "POST" });
+      const params = new URLSearchParams();
+      if (query) params.set("q", query);
+      if (status !== "all") params.set("status", status);
+      const qs = params.toString();
+      const res = await fetch(`/api/audit-log${qs ? `?${qs}` : ""}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setApiCount(data.count);
+      setEvents(data.events);
+      setTotal(data.total);
     } catch (err) {
-      setApiError(err.message);
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
   }
 
-  const backendStatus =
-    health?.status === "ok" ? "Connected" : apiError ? "Error" : "Loading...";
+  useEffect(() => {
+    const id = setTimeout(load, 200);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, status]);
+
+  const stats = useMemo(() => {
+    const uniqueIps = new Set(events.map((e) => e.ip));
+    return {
+      total: events.length,
+      success: events.filter((e) => e.status === "success").length,
+      failed: events.filter((e) => e.status === "failed").length,
+      ips: uniqueIps.size,
+    };
+  }, [events]);
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 24,
-      }}
-    >
-      <section
-        style={{
-          width: "100%",
-          maxWidth: 560,
-          background: "#ffffff",
-          border: "1px solid #e3e7ed",
-          borderRadius: 12,
-          padding: 32,
-          display: "flex",
-          flexDirection: "column",
-          gap: 20,
-        }}
-      >
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <span
-            style={{
-              fontSize: 12,
-              fontWeight: 600,
-              letterSpacing: 0.8,
-              textTransform: "uppercase",
-              color: "#5a6b80",
-            }}
-          >
-            my-project
-          </span>
-          <h1 style={{ margin: 0, fontSize: 30, lineHeight: 1.2 }}>
-            Development environment is running
-          </h1>
-          <p style={{ margin: 0, color: "#4a5a6e", lineHeight: 1.6 }}>
-            This React + Vite frontend talks to a Node + Express API. Edit{" "}
-            <code>src/App.jsx</code> or <code>api/server.js</code> and the page
-            will hot reload.
-          </p>
+    <div className="page">
+      <header className="topbar">
+        <div className="brand">
+          <div className="brand-mark">A</div>
+          <div>
+            <div className="brand-title">Account Audit Log</div>
+            <div className="brand-sub">Security &amp; Compliance</div>
+          </div>
         </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <button
-            onClick={() => setCount((c) => c + 1)}
-            style={{
-              background: "#1f5fd6",
-              color: "#ffffff",
-              border: "none",
-              borderRadius: 8,
-              padding: "10px 18px",
-              fontSize: 15,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            Increment
-          </button>
-          <span style={{ color: "#4a5a6e", fontSize: 15 }}>
-            Clicks: <strong>{count}</strong>
-          </span>
+        <div className="live">
+          <span className="live-dot" />
+          {loading ? "Loading…" : `Live · ${total} events`}
         </div>
+      </header>
 
-        <div
-          style={{
-            borderTop: "1px solid #e3e7ed",
-            paddingTop: 16,
-            display: "flex",
-            flexDirection: "column",
-            gap: 12,
-          }}
+      <div className="stats">
+        <div className="stat-card">
+          <div className="stat-label">Total Events</div>
+          <div className="stat-value">{stats.total}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Successful</div>
+          <div className="stat-value" style={{ color: "var(--success)" }}>
+            {stats.success}
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Failed / Blocked</div>
+          <div className="stat-value" style={{ color: "var(--failed)" }}>
+            {stats.failed}
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Unique IPs</div>
+          <div className="stat-value">{stats.ips}</div>
+        </div>
+      </div>
+
+      <div className="toolbar">
+        <input
+          className="input"
+          placeholder="Search actor, action, IP, detail…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <select
+          className="select"
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ color: "#5a6b80", fontSize: 14 }}>Backend:</span>
-            <strong style={{ fontSize: 14 }}>{backendStatus}</strong>
-            {health?.status === "ok" && (
-              <span style={{ color: "#5a6b80", fontSize: 13 }}>
-                ({health.service} @ {health.time})
-              </span>
-            )}
-            {apiError && (
-              <span style={{ color: "#c0392b", fontSize: 13 }}>{apiError}</span>
-            )}
-          </div>
+          <option value="all">All statuses</option>
+          <option value="success">Success</option>
+          <option value="failed">Failed</option>
+          <option value="warning">Warning</option>
+        </select>
+        <div className="spacer" />
+        <button className="button" onClick={load}>
+          Refresh
+        </button>
+      </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <button
-              onClick={incrementApi}
-              style={{
-                background: "#17894b",
-                color: "#ffffff",
-                border: "none",
-                borderRadius: 8,
-                padding: "10px 18px",
-                fontSize: 15,
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
-              Increment (server)
-            </button>
-            <span style={{ color: "#4a5a6e", fontSize: 15 }}>
-              Server count:{" "}
-              <strong>{apiCount === null ? "…" : apiCount}</strong>
-            </span>
-          </div>
-        </div>
-      </section>
-    </main>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Actor</th>
+              <th>Action</th>
+              <th>Category</th>
+              <th>IP Address</th>
+              <th>Status</th>
+              <th>Detail</th>
+            </tr>
+          </thead>
+          <tbody>
+            {error && (
+              <tr>
+                <td colSpan="7" className="empty">
+                  Failed to load: {error}
+                </td>
+              </tr>
+            )}
+            {!error &&
+              !loading &&
+              events.map((e) => (
+                <tr key={e.id}>
+                  <td className="muted mono">{formatTime(e.timestamp)}</td>
+                  <td className="actor">{e.actor}</td>
+                  <td className="action">{e.action.replaceAll("_", " ")}</td>
+                  <td className="muted">{e.category}</td>
+                  <td className="mono muted">{e.ip}</td>
+                  <td>
+                    <span className={`badge ${STATUS_LABEL[e.status]}`}>
+                      {e.status}
+                    </span>
+                  </td>
+                  <td className="muted">{e.detail}</td>
+                </tr>
+              ))}
+            {!error && !loading && events.length === 0 && (
+              <tr>
+                <td colSpan="7" className="empty">
+                  No matching events.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <p className="footer-note">
+        Demo dataset served by the Express API (<code>/api/audit-log</code>).
+      </p>
+    </div>
   );
 }
