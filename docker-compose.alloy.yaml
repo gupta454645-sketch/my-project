@@ -1,15 +1,30 @@
 services:
+  api:
+    image: node:22-bookworm
+    working_dir: /workspace
+    network_mode: host
+    environment:
+      IS_ALLOY: ${IS_ALLOY:-false}
+      PORT: "4000"
+    volumes:
+      - .:/workspace
+      - api_node_modules:/workspace/api/node_modules
+    command: bash -lc "cd api && npm install --no-audit --no-fund && npm run dev"
+
   web:
     image: node:22-bookworm
     working_dir: /workspace
     network_mode: host
     environment:
       IS_ALLOY: ${IS_ALLOY:-false}
-      VITE_PORT: "3000"
+      VITE_API_TARGET: "http://localhost:4000"
     volumes:
       - .:/workspace
       - node_modules:/workspace/node_modules
+    depends_on:
+      - api
     command: bash -lc "npm install --no-audit --no-fund && npm run dev"
 
 volumes:
   node_modules:
+  api_node_modules:
