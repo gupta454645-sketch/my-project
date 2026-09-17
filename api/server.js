@@ -83,6 +83,26 @@ app.get("/api/audit-log", (req, res) => {
   res.json({ total: rows.length, events: rows });
 });
 
+const sessionSeed = [
+  { ip: "192.168.1.20", device: "Chrome on Mac21 (AI Studio Simulated)", status: "SECURE", minutesAgo: 3 },
+  { ip: "203.0.113.7", device: "Safari on iPhone 15 Pro", status: "ALIVE", minutesAgo: 41 },
+  { ip: "198.51.100.64", device: "Firefox 127 on Linux", status: "SECURE", minutesAgo: 300 },
+  { ip: "203.0.113.42", device: "Chrome 126 on macOS", status: "EXPIRED", minutesAgo: 1440 },
+];
+
+const sessions = sessionSeed.map((s, i) => {
+  const { minutesAgo, ...rest } = s;
+  return {
+    id: i + 1,
+    timestamp: new Date(Date.now() - minutesAgo * 60000).toISOString(),
+    ...rest,
+  };
+});
+
+app.get("/api/sessions", (req, res) => {
+  res.json({ total: sessions.length, sessions });
+});
+
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`API listening on http://localhost:${PORT}`);
 });
